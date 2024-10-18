@@ -1,0 +1,56 @@
+/* Genel stil ayarları */
+body {
+    margin: 0;
+    background-color: #121212; /* Koyu arka plan */
+    color: white; /* Yazı rengi */
+    font-family: Arial, sans-serif; /* Yazı tipi */
+}
+
+/* Oyun alanı */
+canvas {
+    display: block; /* Merkezde görünüm için */
+    margin: auto; /* Ortalamak için */
+    border: 2px solid white; /* Oyun alanının kenarlığı */
+}
+
+/* Oyun mesajları */
+h1 {
+    text-align: center;
+    color: white;
+    margin-top: 20px;
+}
+
+/* Sağlık bilgisi stili */
+#health {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 20px;
+    color: lime; /* Sağlık bilgisi rengi */
+}
+#score {
+    text-align: center;
+    color: white;
+    font-size: 18px;
+    margin-top: 10px;
+}
+#defeatScreen button:hover {
+    background-color: #555; /* Hover rengini koyu yap */
+}
+
+#defeatScreen button:active {
+    background-color: #333; /* Butona basıldığında daha koyu bir renk */
+}
+#health, #score {
+    position: absolute;
+    left: 10px; /* Canvasın sol kenarına yakın bir konum */
+    top: 10px;  /* Sağlık göstergesi için üstten bir konum */
+    color: white;
+    font-size: 20px;
+    z-index: 10;
+    text-align: left;
+}
+
+#score {
+    top: 40px; /* Puan göstergesi için sağlık göstergesinin altına */
+}

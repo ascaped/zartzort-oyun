@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ascaped - zart zort oyun</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #000033; 
+            color: #ffffff; 
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+            margin: auto; 
+            border: 2px solid #4444ff;
+        }
+        .game-title {
+            text-align: center;
+            font-size: 24px;
+            margin-top: 10px;
+            color: #0fff1b;
+            text-shadow: 0 0 10px #09ff00;
+        }
+        .info {
+            position: absolute;
+            top: 10%;
+            right: 5%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background-color: rgba(0, 0, 100, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #4444ff;
+        }
+        .info div {
+            margin-bottom: 10px;
+        }
+        .border {
+            position: absolute;
+            top: 25%;
+            right: 5%;
+            width: 20%;
+            border: 1px solid #4444ff;
+            background-color: rgba(0, 0, 100, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .border div {
+            margin-bottom: 10px;
+        }
+        #defeatScreen, #victoryScreen, #startScreen {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 100, 0.9);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 15px;
+            border: 2px solid #4444ff;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4444ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #5555ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-title">zart zort oyun (BETA)</div>
+    <canvas id="gameCanvas" width="800" height="700"></canvas>
+
+    <div class="info">
+        <div id="health"></div>
+        <div id="score">Puan: 0</div>
+        <div id="level">Seviye: 1</div>
+    </div>
+    
+    <div class="border">
+        <div style="text-align: center; font-weight: bold;">Ateş Etme Modları</div>
+        <div style="text-align: left;"> 
+            1: Otomatik Ateş Modu<br>
+            2: Lazer Ateş Modu<br>
+            3: Bomba Atma Modu<br>
+            4: Otomatik Işın Modu<br>
+            5: Otomatik Ateş Modu (Pompalı)<br>
+            6: Yayılım Ateş Modu (Pompalı)<br>
+            7: Yıldırım Modu<br>
+            8: Plazma Topu Modu<br>
+            9: Kara Delik Modu<br>
+            0: Yumruk Modu
+        </div>
+    </div>
+
+    <div id="startScreen">
+        <h2>zart zort oyun</h2>
+        <p>kahpelere inat yaşayıp ÖLDÜRDÜĞÜN bir oyun. (BETA)</p>
+        <button onclick="startGame()">Oyunu Başlat</button>
+    </div>
+
+    <div id="defeatScreen" style="display: none;">
+        <h2>YENİLGİ</h2>
+        <p>Oyunu kaybettin.</p>
+        <button onclick="restartGame()">Tekrar Oyna</button>
+    </div>
+
+    <div id="victoryScreen" style="display: none;">
+        <h2>ZAFER!</h2>
+        <p>Tebrikler! Tüm düşmanları yok ettin.</p>
+        <button onclick="restartGame()">Tekrar Oyna</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Oyun değişkenleri
+        let player = { x: 400, y: 500, width: 50, height: 50, health: 100 };
+        let enemies = [];
+        let bullets = [];
+        let bombs = [];
+        let health = 100;
+        let score = 0;
+        let level = 1;
+        let shootingMode = 'auto';
+        let colorIndex = 0;
+        let gameStarted = false;
+        let chargingBlackHole = false;
+        let blackHoleChargeTime = 0;
+        let maxChargeTime = 5000; // 5 saniye
+
+        // Ses efektleri
+        const backgroundMusic = new Audio('background.mp3');
+        const shootSound = new Audio('shoot.mp3');
+        const laserSound = new Audio('laser.mp3');
+        const beamSound = new Audio('beam.mp3');
+        const tripleSound = new Audio('triple.mp3');
+        const spreadSound = new Audio('spread.mp3');
+        const lightningSound = new Audio('lightning.mp3');
+        const plasmaBallSound = new Audio('plasmaball.mp3');
+        const blackHoleSound = new Audio('blackhole.mp3');
+        const punchSound = new Audio('punch.mp3');
+        const punchHitSound = new Audio('punch_hit.mp3');
+        const explosionSound = new Audio('explosion.mp3');
+        const deathSound = new Audio('death.mp3');
+        const death2Sound = new Audio('death2.mp3');
+
+        const rainbowColors = ['#ff0000', '#ff5a00', '#f6ff00', '#02ff00', '#0005ff', '#ff00d8', '#7900ff'];
+
+        // Ateş modu aralıkları
+        let laserInterval = null;
+        let autoFireInterval = null;
+        let beamInterval = null;
+        let tripleFireInterval = null;
+        let bombInterval = null;
+        let spreadInterval = null;
+        let lightningInterval = null;
+        let plasmaBallInterval = null;
+        let blackHoleInterval = null;
+        let punchInterval = null;
+
+        // Oyun başlatma fonksiyonu
+        function startGame() {
+            document.getElementById("startScreen").style.display = "none";
+            gameStarted = true;
+            backgroundMusic.loop = true;
+            backgroundMusic.volume = 0.5;
+            backgroundMusic.play();
+            gameLoop();
+        }
+
+        // Düşman oluşturma fonksiyonları
+        function createEnemy() {
+            let enemyType = Math.random();
+            let enemy;
+
+            if (enemyType < 0.5) {
+                enemy = { x: Math.random() * (canvas.width - 50), y: 0, width: 50, height: 50, health: 50, color: 'red', type: 'normal' };
+            } else if (enemyType < 0.7) {
+                enemy = { x: Math.random() * (canvas.width - 50), y: 0, width: 50, height: 50, health: 100, color: 'purple', type: 'tank' };
+            } else if (enemyType < 0.8) {
+                enemy = { x: Math.random() * (canvas.width - 60), y: 0, width: 60, height: 30, health: 200, color: 'lime', type: 'fast' };
+            } else if (enemyType < 0.9) {
+                enemy = { x: Math.random() * (canvas.width - 50), y: 0, width: 50, height: 50, health: 400, color: '#FFFFFF', type: 'white' };
+            } else {
+                let sigmaImage = new Image();
+                sigmaImage.src = 'sigma.png';
+                enemy = { x: Math.random() * (canvas.width - 40), y: 0, width: 50, height: 50, health: 150, color: 'blue', image: sigmaImage, type: 'sigma' };
+            }
+            enemies.push(enemy);
+        }
+
+        // Oyun güncelleme fonksiyonları
+        function updateHealth() {
+            document.getElementById("health").innerText = `Sağlık: ${health}`;
+        }
+
+        function updateScore(points) {
+            score += points;
+            document.getElementById("score").innerText = `Puan: ${score}`;
+        }
+
+        function updateLevel() {
+            level = Math.floor(score / 5000) + 1;
+            document.getElementById("level").innerText = `Seviye: ${level}`;
+        }
+
+        // Ateş etme fonksiyonları
+        function shoot() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 5, type: 'normal' };
+            bullets.push(bullet);
+            shootSound.currentTime = 0;
+            shootSound.play();
+        }
+
+        function shootLaser() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 10, type: 'laser' };
+            bullets.push(bullet);
+            laserSound.currentTime = 0;
+            laserSound.play();
+        }
+
+        function throwBomb() {
+            let bomb = { x: player.x + 20, y: player.y, speed: 6, isExploded: false };
+            bombs.push(bomb);
+        }
+
+        function shootBeam() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 9, type: 'beam', color: rainbowColors[colorIndex] };
+            bullets.push(bullet);
+            beamSound.currentTime = 0;
+            beamSound.play();
+            colorIndex = (colorIndex + 1) % rainbowColors.length;
+        }
+
+        function shootTriple() {
+            const leftBullet = { x: player.x + 15, y: player.y, speed: 8, direction: -0.9, type: 'triple' };
+            const centerBullet = { x: player.x + 20, y: player.y, speed: 8, direction: 0, type: 'triple' };
+            const rightBullet = { x: player.x + 25, y: player.y, speed: 8, direction: 0.9, type: 'triple' };
+            bullets.push(leftBullet, centerBullet, rightBullet);
+            tripleSound.currentTime = 0;
+            tripleSound.play();
+        }
+
+        function shootSpread() {
+            for (let i = -4; i <= 4; i++) {
+                let bullet = { x: player.x + 20, y: player.y, speed: 8, direction: i, type: 'spread' };
+                bullets.push(bullet);
+            }
+            spreadSound.currentTime = 0;
+            spreadSound.play();
+        }
+
+        function shootLightning() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 12, type: 'lightning' };
+            bullets.push(bullet);
+            lightningSound.currentTime = 0;
+            lightningSound.play();
+        }
+
+        function shootPlasmaBall() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 5, type: 'plasmaBall', radius: 15 };
+            bullets.push(bullet);
+            plasmaBallSound.currentTime = 0;
+            plasmaBallSound.play();
+        }
+
+        function createBlackHole() {
+            let blackHole = { x: player.x + 20, y: player.y, radius: 40, lifespan: 1500, type: 'blackHole' };
+            bullets.push(blackHole);
+            blackHoleSound.currentTime = 0;
+            blackHoleSound.play();
+        }
+        function shootPunch() {
+            let bullet = { x: player.x + 20, y: player.y, speed: 8, type: 'punch', lifespan: 20 };
+            bullets.push(bullet);
+            punchSound.currentTime = 0;
+            punchSound.play();
+        }
+
+        // Mermi ve bomba güncelleme fonksiyonları
+        function updateBullets() {
+            bullets.forEach((bullet, index) => {
+                switch (bullet.type) {
+                    case 'normal':
+                    case 'laser':
+                    case 'beam':
+                        bullet.y -= bullet.speed;
+                        break;
+                    case 'triple':
+                    case 'spread':
+                        bullet.y -= bullet.speed;
+                        bullet.x += bullet.direction * 2;
+                        break;
+                    case 'lightning':
+                        bullet.y -= bullet.speed;
+                        bullet.x += Math.sin(bullet.y / 10) * 5;
+                        break;
+                    case 'plasmaBall':
+                        bullet.y -= bullet.speed;
+                        bullet.radius += 0.1;
+                        break;
+                    case 'blackHole':
+                        bullet.lifespan--;
+                        if (bullet.lifespan <= 0) {
+                            bullets.splice(index, 1);
+                        }
+                        break;
+                        case 'punch':
+                        bullet.y -= bullet.speed;
+                        bullet.lifespan--;
+                        if (bullet.lifespan <= 0) {
+                            bullets.splice(index, 1);
+                        }
+                        break;
+                }
+
+                if (bullet.y < 0 && bullet.type !== 'blackHole') {
+                    bullets.splice(index, 1);
+                }
+            });
+        }
+
+        function updateBombs() {
+            bombs.forEach((bomb, index) => {
+                if (!bomb.isExploded) {
+                    bomb.y -= bomb.speed;
+                    if (bomb.y < 0) {
+                        bombs.splice(index, 1);
+                    }
+                }
+            });
+        }
+
+        // Çarpışma kontrolü fonksiyonları
+        function detectCollisions() {
+            bullets.forEach((bullet, bulletIndex) => {
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + 5 > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + 10 > enemy.y) {
+                        
+                        // Mermi türüne göre hasar ayarı
+                        switch(bullet.type) {
+                            case 'laser':
+                                enemy.health -= 50;
+                                break;
+                            case 'triple':
+                                enemy.health -= 50;
+                                break;
+                            case 'spread':
+                                enemy.health -= 80;
+                                break;
+                            case 'lightning':
+                                enemy.health -= 10;
+                                break;
+                            case 'plasmaBall':
+                                enemy.health -= 150;
+                                break;
+                            case 'blackHole':
+                                enemy.health -= 5; // Sürekli hasar
+                                break;
+                            case 'punch':
+                                enemy.health -= 75;
+                                punchHitSound.currentTime = 0;
+                                punchHitSound.play();
+                                break;
+                            default:
+                                enemy.health -= 25;
+                        }
+                        
+                        if (bullet.type !== 'blackHole') {
+                            bullets.splice(bulletIndex, 1);
+                        }
+                        
+                        if (enemy.health <= 0) {
+                            if (enemy.type === 'sigma') {
+                                deathSound.currentTime = 0;
+                                deathSound.play();
+                            } else if (enemy.type === 'white') {
+                                death2Sound.currentTime = 0;
+                                death2Sound.play();
+                            }
+                            enemies.splice(enemyIndex, 1);
+                            updateScore(500);
+                        }
+                    }
+                });
+            });
+        }
+
+        function detectBombCollisions() {
+            bombs.forEach((bomb, bombIndex) => {
+                if (bomb.isExploded) return;
+
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bomb.x < enemy.x + enemy.width &&
+                        bomb.x + 10 > enemy.x &&
+                        bomb.y < enemy.y + enemy.height &&
+                        bomb.y + 10 > enemy.y) {
+                        
+                        bomb.isExploded = true;
+                        explosionSound.currentTime = 0;
+                        explosionSound.play();
+                        createExplosionEffect(bomb.x, bomb.y);
+                        bombs.splice(bombIndex, 1);
+
+                        enemies.forEach((affectedEnemy, affectedIndex) => {
+                            const distance = Math.hypot(affectedEnemy.x - bomb.x, affectedEnemy.y - bomb.y);
+                            if (distance < 100) {
+                                affectedEnemy.health -= 150;
+                                if (affectedEnemy.health <= 0) {
+                                    enemies.splice(affectedIndex, 1);
+                                    updateScore(500);
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        function checkPlayerCollision() {
+            enemies.forEach(enemy => {
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+                    health -= 10;
+                    enemies.splice(enemies.indexOf(enemy), 1);
+                }
+            });
+        }
+
+        // Efekt fonksiyonları
+        function createExplosionEffect(x, y) {
+            ctx.fillStyle = 'orange';
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, Math.PI * 2);
+            ctx.fill();
+            setTimeout(() => {
+                ctx.clearRect(x - 30, y - 30, 60, 60);
+            }, 200);
+        }
+
+        // Ana oyun döngüsü ve güncelleme fonksiyonları
+        function update() {
+            updateBullets();
+            updateBombs();
+            enemies.forEach(e => {
+                e.y += 1 + (level * 0.1);
+                if (e.type === 'fast') e.y += 1;
+            });
+            detectCollisions();
+            detectBombCollisions();
+            checkPlayerCollision();
+
+            if (Math.random() < 0.02 + (level * 0.005)) createEnemy();
+            
+            if (health <= 0) {
+                showDefeatScreen();
+            }
+
+            bullets = bullets.filter(b => b.y > 0);
+            bombs = bombs.filter(b => !b.isExploded && b.y > 0);
+            enemies = enemies.filter(e => e.y < canvas.height);
+
+            updateHealth();
+            updateLevel();
+
+            if (enemies.length === 0 && score > 10000) {
+                showVictoryScreen();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Oyuncu çizimi
+            ctx.fillStyle = "blue";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Mermileri çiz
+            bullets.forEach(b => {
+                switch(b.type) {
+                    case 'beam':
+                        ctx.fillStyle = b.color;
+                        ctx.fillRect(b.x, b.y, 10, 20);
+                        break;
+                    case 'triple':
+                        ctx.fillStyle = '#8B0000';
+                        ctx.fillRect(b.x, b.y, 3, 20);
+                        break;
+                    case 'spread':
+                        ctx.fillStyle = 'yellow';
+                        ctx.fillRect(b.x, b.y, 5, 10);
+                        break;
+                    case 'lightning':
+                        ctx.strokeStyle = 'cyan';
+                        ctx.beginPath();
+                        ctx.moveTo(b.x, b.y);
+                        ctx.lineTo(b.x, b.y - 30);
+                        ctx.stroke();
+                        break;
+                    case 'plasmaBall':
+                        ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+                        ctx.beginPath();
+                        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                    case 'blackHole':
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath();
+                        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                    case 'punch':
+                        ctx.fillStyle = 'blue';
+                        ctx.beginPath();
+                        ctx.arc(b.x, b.y, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                    default:
+                        ctx.fillStyle = b.type === 'laser' ? 'cyan' : 'orange';
+                        ctx.fillRect(b.x, b.y, 5, 10);
+                }
+            });
+
+            // Bombaları çiz
+            bombs.forEach(b => {
+                if (!b.isExploded) {
+                    ctx.fillStyle = 'gray';
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Düşmanları çiz
+            enemies.forEach(e => {
+                if (e.image) {
+                    ctx.drawImage(e.image, e.x, e.y, e.width, e.height);
+                } else {
+                    ctx.fillStyle = e.color;
+                    ctx.fillRect(e.x, e.y, e.width, e.height);
+                }
+            });
+        }
+
+        // Oyun kontrol fonksiyonları
+        let keyState = {};
+
+        document.addEventListener("keydown", function(event) {
+            event.preventDefault();
+            keyState[event.code] = true;
+
+            switch(event.code) {
+                case "Digit0":
+                    shootingMode = 'punch';
+                    break;
+                case "Digit1":
+                    shootingMode = 'auto';
+                    break;
+                case "Digit2":
+                    shootingMode = 'laser';
+                    break;
+                case "Digit3":
+                    shootingMode = 'bomb';
+                    break;
+                case "Digit4":
+                    shootingMode = 'beam';
+                    break;
+                case "Digit5":
+                    shootingMode = 'triple';
+                    break;
+                case "Digit6":
+                    shootingMode = 'spread';
+                    break;
+                case "Digit7":
+                    shootingMode = 'lightning';
+                    break;
+                case "Digit8":
+                    shootingMode = 'plasmaBall';
+                    break;
+                case "Digit9":
+                    shootingMode = 'blackHole';
+                    break;
+            }
+        });
+
+        document.addEventListener("keyup", function(event) {
+            keyState[event.code] = false;
+        });
+
+        function updatePlayerMovement() {
+            if (keyState["KeyW"] && player.y > 0) player.y -= 3;
+            if (keyState["KeyA"] && player.x > 0) player.x -= 3;
+            if (keyState["KeyS"] && player.y < canvas.height - player.height) player.y += 3;
+            if (keyState["KeyD"] && player.x < canvas.width - player.width) player.x += 3;
+        }
+
+        function gameLoop() {
+            if (!gameStarted) return;
+            updatePlayerMovement();
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Ateş modu kontrol fonksiyonları
+        function startAutoFire() {
+            if (autoFireInterval) return;
+            autoFireInterval = setInterval(() => {
+                if (shootingMode === 'auto') shoot();
+            }, 100);
+        }
+
+        function stopAutoFire() {
+            clearInterval(autoFireInterval);
+            autoFireInterval = null;
+        }
+
+        function startLaserFire() {
+            if (laserInterval) return;
+            laserInterval = setInterval(() => {
+                if (shootingMode === 'laser') shootLaser();
+            }, 300);
+        }
+
+        function stopLaserFire() {
+            clearInterval(laserInterval);
+            laserInterval = null;
+        }
+
+        function startBeamFire() {
+            if (beamInterval) return;
+            beamInterval = setInterval(() => {
+                if (shootingMode === 'beam') shootBeam();
+            }, 120);
+        }
+
+        function stopBeamFire() {
+            clearInterval(beamInterval);
+            beamInterval = null;
+        }
+
+        function startTripleFire() {
+            if (tripleFireInterval) return;
+            tripleFireInterval = setInterval(() => {
+                if (shootingMode === 'triple') shootTriple();
+            }, 200);
+        }
+
+        function stopTripleFire() {
+            clearInterval(tripleFireInterval);
+            tripleFireInterval = null;
+        }
+
+        function startBombFire() {
+            if (bombInterval) return;
+            bombInterval = setInterval(() => {
+                if (shootingMode === 'bomb') throwBomb();
+            }, 750);
+        }
+
+        function stopBombFire() {
+            clearInterval(bombInterval);
+            bombInterval = null;
+        }
+
+        function startSpreadFire() {
+            if (spreadInterval) return;
+            spreadInterval = setInterval(() => {
+                if (shootingMode === 'spread') shootSpread();
+            }, 550);
+        }
+
+        function stopSpreadFire() {
+            clearInterval(spreadInterval);
+            spreadInterval = null;
+        }
+
+        function startLightningFire() {
+            if (lightningInterval) return;
+            lightningInterval = setInterval(() => {
+                if (shootingMode === 'lightning') shootLightning();
+            }, 30);
+        }
+
+        function stopLightningFire() {
+            clearInterval(lightningInterval);
+            lightningInterval = null;
+        }
+
+        function startPlasmaBallFire() {
+            if (plasmaBallInterval) return;
+            plasmaBallInterval = setInterval(() => {
+                if (shootingMode === 'plasmaBall') shootPlasmaBall();
+            }, 400);
+        }
+
+        function stopPlasmaBallFire() {
+            clearInterval(plasmaBallInterval);
+            plasmaBallInterval = null;
+        }
+
+        function startBlackHoleFire() {
+            if (blackHoleInterval) return;
+            blackHoleInterval = setInterval(() => {
+                if (shootingMode === 'blackHole') createBlackHole();
+            }, 2500);
+        }
+
+        function stopBlackHoleFire() {
+            clearInterval(blackHoleInterval);
+            blackHoleInterval = null;
+        }
+        function startPunchFire() {
+            if (punchInterval) return;
+            punchInterval = setInterval(() => {
+                if (shootingMode === 'punch') shootPunch();
+            }, 300);
+        }
+
+        function stopPunchFire() {
+            clearInterval(punchInterval);
+            punchInterval = null;
+        }
+
+        // Oyun başlatma ve yeniden başlatma fonksiyonları
+        function showDefeatScreen() {
+            document.getElementById("defeatScreen").style.display = "block";
+            gameStarted = false;
+        }
+
+        function showVictoryScreen() {
+            document.getElementById("victoryScreen").style.display = "block";
+            gameStarted = false;
+        }
+
+        function restartGame() {
+            player = { x: 400, y: 500, width: 50, height: 50, health: 100 };
+            enemies = [];
+            bullets = [];
+            bombs = [];
+            health = 100;
+            score = 0;
+            level = 1;
+            document.getElementById("defeatScreen").style.display = "none";
+            document.getElementById("victoryScreen").style.display = "none";
+            gameStarted = true;
+            gameLoop();
+        }
+
+        // Ses kontrolü
+        function controlMusicVolume() {
+            if (keyState['ArrowUp']) {
+                backgroundMusic.volume = Math.min(backgroundMusic.volume + 0.01, 1);
+            }
+            if (keyState['ArrowDown']) {
+                backgroundMusic.volume = Math.max(backgroundMusic.volume - 0.01, 0);
+            }
+        }
+
+        setInterval(controlMusicVolume, 100);
+
+        // Fare olayları
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                switch(shootingMode) {
+                    case 'auto':
+                        startAutoFire();
+                        break;
+                    case 'laser':
+                        startLaserFire();
+                        break;
+                    case 'beam':
+                        startBeamFire();
+                        break;
+                    case 'bomb':
+                        startBombFire();
+                        break;
+                    case 'triple':
+                        startTripleFire();
+                        break;
+                    case 'spread':
+                        startSpreadFire();
+                        break;
+                    case 'lightning':
+                        startLightningFire();
+                        break;
+                    case 'plasmaBall':
+                        startPlasmaBallFire();
+                        break;
+                    case 'blackHole':
+                        startBlackHoleFire();
+                        break;
+                    case 'punch':
+                        startPunchFire();
+                        break;
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            stopAutoFire();
+            stopLaserFire();
+            stopBeamFire();
+            stopBombFire();
+            stopTripleFire();
+            stopSpreadFire();
+            stopLightningFire();
+            stopPlasmaBallFire();
+            stopBlackHoleFire();
+            stopPunchFire();
+        });
+
+        // Oyunu başlat
+        document.getElementById("startScreen").style.display = "block";
+    </script>
+</body>
+</html>
